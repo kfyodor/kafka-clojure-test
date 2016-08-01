@@ -1,6 +1,6 @@
 (ns kafka-test.core
   (:require [kafka-test
-             [producer :as p]
+             [simple-producer :as simple]
              [consumer :as c]
              [source   :as s]]
             [environ.core :refer [env]]
@@ -14,17 +14,17 @@
 
 (def config
   {:kafka-bootstrap-server (or (env :kafka-bootstrap-server)
-                               "192.168.99.100:9092")})
+                               "0.0.0.0:9092")})
 
 (defn make-system [config]
   (component/system-map
-   :source   (s/make-source)
-   :producer (component/using
-              (p/make-producer config)
-              [:source])))
+   :producer (simple/make-simple-producer config)
+   :consumer (c/make-consumer config)))
 
 (defn -main
   [& args]
+  (.setContextClassLoader (Thread/currentThread) nil)
+
   (let [system (component/start (make-system config))
         lock   (promise)]
     (add-shutdown-hook! #(do (component/stop system)

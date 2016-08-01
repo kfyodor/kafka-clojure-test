@@ -4,19 +4,17 @@
             [faker.phone-number :as phone-gen]
             [com.stuartsierra.component :as component]))
 
-(defn- random-message
-  []
-  {:id         (java.util.UUID/randomUUID)
+(defn- random-message [counter]
+  {:id         counter
    :first-name (name-gen/first-name)
    :last-name  (name-gen/last-name)
    :phone      (first (phone-gen/phone-numbers))})
 
 (defn- start-generator!
   [ch]
-  (go-loop []
-    (<! (timeout (rand-int 50)))
-    (>! ch (random-message))
-    (recur)))
+  (go-loop [cnt 0]
+    (>! ch (random-message cnt))
+    (recur (inc cnt))))
 
 (defrecord Source [ch gen]
   component/Lifecycle

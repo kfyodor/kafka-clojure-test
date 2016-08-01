@@ -1,0 +1,11 @@
+{
+  "namespace": "kafka-test.avro",
+  "type": "record",
+  "name": "User",
+  "fields": [
+    {"name": "id", "type": "int"},
+    {"name": "first_name", "type": "string"},
+    {"name": "last_name", "type": "string"},
+    {"name": "phone", "type": "string"}
+  ]
+}
