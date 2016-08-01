@@ -2,7 +2,8 @@
   (:require [kafka-test.util :as u]
             [com.stuartsierra.component :as component]
             [clojure.tools.logging :as log]
-            [schema.core :as s])
+            [schema.core :as s]
+            [clojure.core.async :refer [go <!]])
   (:import [org.apache.kafka.clients.producer
             KafkaProducer
             Producer
@@ -110,31 +111,24 @@
   (mapv PartitionInfo->map
         (.partitionsFor producer topic)))
 
-(defn test-stuff []
-  (let [producer (kafka-producer :key-serializer (StringSerializer.)
-                                 :value-serializer (StringSerializer.)
-                                 :props default-props)]
-    (send! producer "kafkatest" "test1")
-    (send! producer
-           "kafkatest"
-           "test2"
-           {:key "kafka-test"
-            :callback (fn [m ex]
-                        (if ex
-                          (throw ex)
-                          (log/info "callback" m)))})
-    (flush! producer)
-    (.close producer)))
-
 (defrecord SimpleProducer [config source]
   component/Lifecycle
 
   (start [this]
     (let [producer (kafka-producer :key-serializer (StringSerializer.)
                                    :value-serializer (StringSerializer.)
-                                   :props default-props)]
-      (send! producer "kafkatest" "test1" {:key "1"})
-      (send! producer "kafkatest" "test2" {:key "2"})
+                                   :props default-props)
+          ch (:ch source)]
+      (go
+        (loop []
+          (let [msg (<! ch)]
+            (send! producer
+                   "kafkatest"
+                   (str msg)
+                   {:callback (fn [_ ex]
+                                (when ex
+                                  (log/error "Error in producer" ex)))})
+            (recur))))
       this))
   (stop [this]  this))
 

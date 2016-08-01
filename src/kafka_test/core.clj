@@ -18,7 +18,10 @@
 
 (defn make-system [config]
   (component/system-map
-   :producer (simple/make-simple-producer config)
+   :source   (s/make-source)
+   :producer (component/using
+              (simple/make-simple-producer config)
+              [:source])
    :consumer (c/make-consumer config)))
 
 (defn -main

@@ -78,16 +78,15 @@
                                        :props {:enable.auto.commit false
                                                :group.id "test"
                                                :bootstrap.servers [(config :kafka-bootstrap-server)]})
-                       (subscribe! ["kafkatest"]))
-          stats (atom {:mps 0 :time (System/currentTimeMillis) :msg-cnt 0})]
-      (thread
-        (try
-          (doseq [record (stream consumer {:poll-timeout 100})]
-            (log/info record))
+                       (subscribe! ["kafkatest"]))]
+      (go
+        (thread
+          (try
+            (doseq [record (stream consumer {:poll-timeout 100})]
+              (log/info record))
 
-          (catch Exception e
-            (log/error e "Error in consumer"))))
-      )
+            (catch Exception e
+              (log/error e "Error in consumer"))))))
     this)
   (stop  [this]
     this))

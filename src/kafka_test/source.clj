@@ -13,6 +13,7 @@
 (defn- start-generator!
   [ch]
   (go-loop [cnt 0]
+    (<! (timeout 1000))
     (>! ch (random-message cnt))
     (recur (inc cnt))))
 
