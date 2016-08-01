@@ -1,5 +1,7 @@
 (ns kafka-test.simple-producer
-  (:require [kafka-test.util :as u]
+  (:require [kafka-test
+             [util :as u]
+             [avro :as avro]]
             [com.stuartsierra.component :as component]
             [clojure.tools.logging :as log]
             [schema.core :as s]
@@ -13,6 +15,8 @@
            [org.apache.kafka.common
             PartitionInfo
             Node]
+           [io.confluent.kafka.serializers
+            KafkaAvroSerializer]
            [org.apache.kafka.common.serialization Serializer StringSerializer]))
 
 (s/defschema ProducerArgs
@@ -32,26 +36,24 @@
       (KafkaProducer. key-serializer value-serializer)))
 
 (def default-props {:bootstrap.servers ["localhost:9092"]
+                    :schema.registry.url "http://localhost:8081"
                     :acks "all"
                     :retries 0
                     :batch.size 16384
                     :linger.ms 1
-                    :buffer.memory 33554432})
+                    :buffer.memory 33554432
+                    :key.serializer "org.apache.kafka.common.serialization.StringSerializer"
+                    :value.serializer "io.confluent.kafka.serializers.KafkaAvroSerializer"})
 
-(defn- map->ProducerRecord
-  ([^String topic record]
-   (map->ProducerRecord topic {} record))
-  ([^String topic
-    {:keys [key
-            key-fn
+(defn- make-producer-record
+  ([{:keys [topic
+            key
+            value
             partition
-            timestamp
-            timestamp-fn]
-     :as opts}
-    record]
-   (let [key (or key (and key-fn (key-fn record)))
-         ts  (or timestamp (and timestamp-fn (timestamp-fn record)))]
-     (ProducerRecord. topic partition ts key record))))
+            timestamp]
+     :as record}]
+   {:pre [(and (not (nil? value)) (not (nil? topic)))]}
+   (ProducerRecord. topic partition timestamp key value)))
 
 (defn- Node->map
   [^Node node]
@@ -85,18 +87,10 @@
           (f ex)))))
 
 (defn send!
-  "Valid options are (all are optional):
-   `:key`          - record key
-   `:key-fn`       - function which extracts key from record
-   `:partition`    - partition number
-   `:timestamp`    - record timestamp
-   `:timestamp-fn` - function which extracts timestamp from record
-   `:callback`     - callback (a function of record metadata map and exception)"
-  ([^Producer producer ^String topic record]
-   (send! producer topic record {}))
-  ([^Producer producer ^String topic record {:keys [callback] :as opts}]
-   (let [opts     (dissoc opts :callback)
-         record   (map->ProducerRecord topic opts record)
+  ([^Producer producer record]
+   (send! producer record nil))
+  ([^Producer producer record callback]
+   (let [record   (make-producer-record record)
          callback (and callback (make-send-callback callback))]
      (.send producer record callback))))
 
@@ -115,19 +109,14 @@
   component/Lifecycle
 
   (start [this]
-    (let [producer (kafka-producer :key-serializer (StringSerializer.)
-                                   :value-serializer (StringSerializer.)
-                                   :props default-props)
+    (let [producer (kafka-producer :props default-props)
           ch (:ch source)]
       (go
         (loop []
-          (let [msg (<! ch)]
-            (send! producer
-                   "kafkatest"
-                   (str msg)
-                   {:callback (fn [_ ex]
-                                (when ex
-                                  (log/error "Error in producer" ex)))})
+          (let [msg (avro/make-message :user (<! ch))]
+            (send! producer msg (fn [_ ex]
+                                  (when ex
+                                    (log/error ex))))
             (recur))))
       this))
   (stop [this]  this))

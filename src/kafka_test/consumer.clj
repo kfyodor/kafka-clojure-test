@@ -78,7 +78,7 @@
                                        :props {:enable.auto.commit false
                                                :group.id "test"
                                                :bootstrap.servers [(config :kafka-bootstrap-server)]})
-                       (subscribe! ["kafkatest"]))]
+                       (subscribe! ["user"]))]
       (go
         (thread
           (try
