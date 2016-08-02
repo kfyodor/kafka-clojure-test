@@ -3,12 +3,15 @@
             [schema.core :as s]
             [taoensso.timbre :as log]
             [com.stuartsierra.component :as component]
-            [clojure.core.async :refer [thread go timeout <!]])
+            [clojure.core.async :refer [thread go timeout <!]]
+            [kafka-test.avro :as avro])
   (:import  [org.apache.kafka.clients.consumer
              KafkaConsumer
              ConsumerRecord
              ConsumerRecords
              OffsetAndMetadata]
+            [io.confluent.kafka.serializers
+             KafkaAvroDeserializer]
             [org.apache.kafka.common
              TopicPartition]
             [org.apache.kafka.common.serialization Deserializer StringDeserializer]))
@@ -73,16 +76,18 @@
   component/Lifecycle
 
   (start [this]
-    (let [consumer (-> (kafka-consumer :key-deserializer (StringDeserializer.)
-                                       :value-deserializer (StringDeserializer.)
-                                       :props {:enable.auto.commit false
+    (let [consumer (-> (kafka-consumer :props {:enable.auto.commit false
+                                               :schema.registry.url "http://localhost:8081"
+                                               :key.deserializer "org.apache.kafka.common.serialization.StringDeserializer"
+                                               :value.deserializer "io.confluent.kafka.serializers.KafkaAvroDeserializer"
                                                :group.id "test"
                                                :bootstrap.servers [(config :kafka-bootstrap-server)]})
                        (subscribe! ["user"]))]
       (go
         (thread
           (try
-            (doseq [record (stream consumer {:poll-timeout 100})]
+            (doseq [record (avro/parse-avro-stream
+                            (stream consumer {:poll-timeout 100}))]
               (log/info record))
 
             (catch Exception e
