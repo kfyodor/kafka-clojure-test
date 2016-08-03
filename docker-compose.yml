@@ -3,28 +3,42 @@ version: '2'
 services:
   app:
     build: .
-    links:
+    depends_on:
       - kafka
+      - schema_registry
     environment:
-      KAFKA_BOOTSTRAP_SERVER: kafka:9092
+      KAFKA_BOOTSTRAP_SERVER: "0.0.0.0:9092"
+      SCHEMA_REGISTRY_URL: "http://0.0.0.0:8081"
+    network_mode: "host"
 
   zookeeper:
-    image: wurstmeister/zookeeper:latest
+    image: confluent/zookeeper:latest
     ports:
-      - 2181:2181
+      - "2181:2181"
+    network_mode: "host"
 
   kafka:
-    image: wurstmeister/kafka:0.9.0.1
+    image: confluent/kafka:latest
     ports:
-      - 9092:9092
-    links:
-      - zookeeper:zk
+      - "9092:9092"
+    depends_on:
+      - zookeeper
     environment:
-      KAFKA_ADVERTISED_HOST_NAME: 192.168.99.100
-      KAFKA_ZOOKEEPER_CONNECT: zk:2181
-      KAFKA_DELETE_TOPIC_ENABLE: "true"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      KAFKA_ZOOKEEPER_CONNECT: "0.0.0.0:2181"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    network_mode: "host"
 
-  schema-registry:
+  schema_registry:
+    ports:
+      - "8081:8081"
+    depends_on:
+      - zookeeper
+      - kafka
+    environment:
+      SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: "0.0.0.0:2181"
+      SCHEMA_REGISTRY_DEBUG: 'true'
     image: confluent/schema-registry:latest
+    network_mode: "host"
+    volumes:
+      - ./scripts:/scripts
+    entrypoint: /scripts/run-schema-registry.sh

@@ -62,26 +62,20 @@
              (lazy-seq (stream consumer
                                (assoc opts :commit-prev true))))))
 
-(defn calculate-stats
-  [{:keys [mps msg-cnt] :as stats}]
-  (if (zero? mps)
-    (assoc stats
-           :mps msg-cnt
-           :msg-cnt 0)
-    (assoc stats
-           :mps (float (/ (+ msg-cnt mps) 2))
-           :msg-cnt 0)))
+
+(defn make-props [config]
+  {:enable.auto.commit false
+   :schema.registry.url (config :schema-registry-url)
+   :key.deserializer "org.apache.kafka.common.serialization.StringDeserializer"
+   :value.deserializer "io.confluent.kafka.serializers.KafkaAvroDeserializer"
+   :group.id "test"
+   :bootstrap.servers [(config :kafka-bootstrap-server)]})
 
 (defrecord Consumer [config conn]
   component/Lifecycle
 
   (start [this]
-    (let [consumer (-> (kafka-consumer :props {:enable.auto.commit false
-                                               :schema.registry.url "http://localhost:8081"
-                                               :key.deserializer "org.apache.kafka.common.serialization.StringDeserializer"
-                                               :value.deserializer "io.confluent.kafka.serializers.KafkaAvroDeserializer"
-                                               :group.id "test"
-                                               :bootstrap.servers [(config :kafka-bootstrap-server)]})
+    (let [consumer (-> (kafka-consumer :props (make-props config))
                        (subscribe! ["user"]))]
       (go
         (thread

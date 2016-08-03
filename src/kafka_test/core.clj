@@ -14,7 +14,10 @@
 
 (def config
   {:kafka-bootstrap-server (or (env :kafka-bootstrap-server)
-                               "0.0.0.0:9092")})
+                               "0.0.0.0:9092")
+
+   :schema-registry-url (or (env :schema-registry-url)
+                            "http://localhost:8081")})
 
 (defn make-system [config]
   (component/system-map

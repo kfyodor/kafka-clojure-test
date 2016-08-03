@@ -35,16 +35,6 @@
   (-> (u/make-props props)
       (KafkaProducer. key-serializer value-serializer)))
 
-(def default-props {:bootstrap.servers ["localhost:9092"]
-                    :schema.registry.url "http://localhost:8081"
-                    :acks "all"
-                    :retries 0
-                    :batch.size 16384
-                    :linger.ms 1
-                    :buffer.memory 33554432
-                    :key.serializer "org.apache.kafka.common.serialization.StringSerializer"
-                    :value.serializer "io.confluent.kafka.serializers.KafkaAvroSerializer"})
-
 (defn- make-producer-record
   ([{:keys [topic
             key
@@ -105,11 +95,22 @@
   (mapv PartitionInfo->map
         (.partitionsFor producer topic)))
 
+(defn make-props [config]
+  {:bootstrap.servers [(config :kafka-bootstrap-server)]
+   :schema.registry.url (config :schema-registry-url)
+   :acks "all"
+   :retries 0
+   :batch.size 16384
+   :linger.ms 1
+   :buffer.memory 33554432
+   :key.serializer "org.apache.kafka.common.serialization.StringSerializer"
+   :value.serializer "io.confluent.kafka.serializers.KafkaAvroSerializer"})
+
 (defrecord SimpleProducer [config source]
   component/Lifecycle
 
   (start [this]
-    (let [producer (kafka-producer :props default-props)
+    (let [producer (kafka-producer :props (make-props config))
           ch (:ch source)]
       (go
         (loop []
