@@ -42,12 +42,12 @@
       (throw-invalid-type schema obj))
 
     Schema$Type/INT
-    (if (and (number? obj) (<= Integer/MIN_VALUE obj Integer/MAX_VALUE))
+    (if (and (integer? obj) (<= Integer/MIN_VALUE obj Integer/MAX_VALUE))
       (int obj)
       (throw-invalid-type schema obj))
 
     Schema$Type/LONG
-    (if (and (number? obj) (<= Long/MIN_VALUE obj Long/MAX_VALUE))
+    (if (and (integer? obj) (<= Long/MIN_VALUE obj Long/MAX_VALUE))
       (long obj)
       (throw-invalid-type schema obj))
 
@@ -97,7 +97,17 @@
                  (vals obj)))
 
     Schema$Type/UNION
-    nil
+    (let [[val matched]
+          (reduce (fn [_ schema]
+                    (try
+                      (reduced [(clj->java schema obj) true])
+                      (catch Exception _
+                        [nil false])))
+                  [nil false]
+                  (.getTypes schema))]
+      (if matched
+        val
+        (throw-invalid-type schema obj)))
 
     Schema$Type/RECORD
     (reduce-kv
