@@ -6,6 +6,40 @@
     {"name": "id", "type": "int"},
     {"name": "first_name", "type": "string"},
     {"name": "last_name", "type": "string"},
-    {"name": "phone", "type": "string"}
+    {"name": "phone", "type": "string"},
+    {
+      "name": "order_ids",
+      "type": {
+        "type": "array",
+	"items": "int"
+      },
+      "default": [-1]
+    },
+    {
+      "name": "cleaner_id",
+      "type":  ["null", "int"],
+      "default": null
+    },
+    {
+      "name": "address",
+      "default": {"id": -1, "city": "unknown"},
+      "type": {
+	"name": "Address",
+        "type": "record",
+	"fields": [
+          {"name": "id", "type": "int", "default": -1},
+          {"name": "city", "type": "string", "default": "unknown"}
+	]
+      }
+    },
+    {
+      "name": "role",
+      "default": "USER",
+      "type": {
+        "type": "enum",
+        "name": "Role",
+        "symbols": ["GUEST", "USER", "ADMIN"]
+      }
+    }
   ]
 }

@@ -12,15 +12,27 @@
            [org.apache.avro Schema Schema$Type]))
 
 ;; this is test code: load all schemas into a Clojure map
-(def schemas
-  (->> (file-seq (io/file (io/resource "avro/")))
-       (filter #(re-matches #"\A.+\.avsc\z" (.getName %)))
-       (map #(let [schema (slurp %)
-                   {:keys [name]} (json/parse-string schema true)]
-               [(-> name ->kebab-case keyword)
-                (Schema/parse schema)]))
-       (into {})
-       (doall)))
+
+(def sample-user
+  {:id 1
+   :first_name "Test"
+   :last_name "Test"
+   :phone "+79031234567"
+   :order_ids [1,2,3,4]
+   :cleaner_id nil
+   :address {:id 2
+             :city "Moscow"}
+   :role "USER"})
+
+(def schemas ;; loads all schemas, should be moved to a library
+   (->> (file-seq (io/file (io/resource "avro/")))
+          (filter #(re-matches #"\A.+\.avsc\z" (.getName %)))
+          (map #(let [schema (slurp %)
+                      {:keys [name]} (json/parse-string schema true)]
+                  [(-> name ->kebab-case keyword)
+                   (Schema/parse schema)]))
+          (into {})
+          (doall)))
 
 (defn- throw-invalid-type
   [schema obj]
@@ -33,7 +45,9 @@
     false
     (-> x class .getComponentType (= Byte/TYPE))))
 
-(defn- clj->java
+(defn- clj->java ;; todo: test default values???
+  "Converts Clojure data structures
+   to Avro-compatible Java class"
   [schema obj]
   (condp = (and (instance? Schema schema) (.getType schema))
     Schema$Type/NULL
@@ -86,10 +100,11 @@
       (throw-invalid-type schema obj))
 
     Schema$Type/ENUM
-    (let [enums (into #{} (.getEnumSymbols schema))]
-      (if (contains? enums obj)
-        (GenericData$EnumSymbol. schema obj)
-        (throw-invalid-type schema obj)))
+    (let [enum (name obj)
+          enums (into #{} (.getEnumSymbols schema))]
+      (if (contains? enums enum)
+        (GenericData$EnumSymbol. schema enum)
+        (throw-invalid-type schema enum)))
 
     Schema$Type/MAP ;; TODO Exception for complex type
     (zipmap (map (comp name ->snake_case) (keys obj))
@@ -122,38 +137,64 @@
 
     (throw (Exception. (format "Field `%s` is not in schema" schema)))))
 
+(defn- java->clj
+  "Parses deserialized Avro object into
+   Clojure data structures. Keys in records
+   and maps + enums will get keywordized and
+   kebab-cased."
+  [msg]
+  (condp = (type msg)
+    Utf8
+    (str msg)
+
+    ;; TODO: test
+
+    ;; Schema$Type/BYTES
+    ;; (if (bytes? obj)
+    ;;   obj
+    ;;   (throw-invalid-type schema obj))
+
+    GenericData$Array
+    (into [] (map java->clj msg))
+
+    GenericData$Fixed
+    (.bytes msg)
+
+    GenericData$EnumSymbol
+    (keyword (str msg))
+
+
+    ;; TODO keys
+
+    ;; Schema$Type/MAP ;; TODO Exception for complex type
+    ;; (zipmap (map (comp name ->snake_case) (keys obj))
+    ;;         (map (partial clj->java (.getValueType schema))
+    ;;              (vals obj)))
+
+    GenericData$Record
+    (loop [fields (seq (.. msg getSchema getFields)) record {}]
+      (if-let [f (first fields)]
+        (let [n (.name f)
+              v (java->clj (.get msg n))
+              k (-> n ->kebab-case keyword)]
+          (recur (rest fields)
+                 (assoc record k v)))
+        record))
+
+    ;; long, int, double, float and stuff
+    msg))
+
 (defn make-message
   [entity-type value]
   (let [schema (get schemas entity-type)
         topic  (name entity-type)
-        record (make-generic-record schema value)]
+        record (clj->java schema value)]
     {:topic topic
      :key (str (:id value))
      :value (clj->java schema value)}))
 
-(defn maybe-parse-string
-  ;; todo: rename to parse-value
-  ;; and add more types???
-  [v]
-  (if (instance? Utf8 v)
-    (.toString v)
-    v))
-
-(defn parse-message
-  [msg]
-  (let [fields (map #(.name %)
-                    (.. msg (getSchema) (getFields)))]
-    (into {}
-          (map
-           (fn [k]
-             [(keyword (->kebab-case k)) (maybe-parse-string
-                                          (.get msg k))])
-           fields))))
+(def parse-message java->clj)
 
 (defn parse-avro-stream
   [stream]
   (map #(update-in % [:value] parse-message) stream))
-
-
-;; PRIMITIVE_TYPES = Set.new(%w[null boolean string bytes int long float double])
-;; NAMED_TYPES =     Set.new(%w[fixed enum record error])
