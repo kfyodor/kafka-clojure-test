@@ -19,9 +19,13 @@
    :last_name "Test"
    :phone "+79031234567"
    :order_ids [1,2,3,4]
+
    :cleaner_id nil
    :address {:id 2
-             :city "Moscow"}
+             :city "Moscow"
+             :street {:name "Lenina"
+                      :house "1"
+                      :apt   "2"}}
    :role "USER"})
 
 (def schemas ;; loads all schemas, should be moved to a library
@@ -163,15 +167,12 @@
     GenericData$EnumSymbol
     (keyword (str msg))
 
-
-    ;; TODO keys
-
-    ;; Schema$Type/MAP ;; TODO Exception for complex type
-    ;; (zipmap (map (comp name ->snake_case) (keys obj))
-    ;;         (map (partial clj->java (.getValueType schema))
-    ;;              (vals obj)))
+    java.util.HashMap
+    (zipmap (map (comp keyword ->kebab-case str) (keys msg))
+            (map java->clj (vals msg)))
 
     GenericData$Record
+    ;; Transients are making this slower, I wonder why?
     (loop [fields (seq (.. msg getSchema getFields)) record {}]
       (if-let [f (first fields)]
         (let [n (.name f)
@@ -181,7 +182,6 @@
                  (assoc record k v)))
         record))
 
-    ;; long, int, double, float and stuff
     msg))
 
 (defn make-message
