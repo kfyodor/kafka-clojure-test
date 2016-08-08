@@ -8,6 +8,7 @@
             GenericData$Array
             GenericData$Fixed
             GenericData$EnumSymbol]
+           [java.nio ByteBuffer]
            [org.apache.avro.util Utf8]
            [org.apache.avro Schema Schema$Type]))
 
@@ -19,13 +20,17 @@
    :last_name "Test"
    :phone "+79031234567"
    :order_ids [1,2,3,4]
-
    :cleaner_id nil
    :address {:id 2
              :city "Moscow"
              :street {:name "Lenina"
                       :house "1"
                       :apt   "2"}}
+   :guid (->> (java.util.UUID/randomUUID)
+              (str)
+              (map byte)
+              (byte-array))
+   :bytes (byte-array (map byte "test-bytes"))
    :role "USER"})
 
 (def schemas ;; loads all schemas, should be moved to a library
@@ -91,7 +96,9 @@
 
     Schema$Type/BYTES
     (if (bytes? obj)
-      obj
+      (doto (ByteBuffer/allocate (count obj))
+        (.put obj)
+        (.position 0))
       (throw-invalid-type schema obj))
 
     Schema$Type/ARRAY ;; TODO Exception for complex type
@@ -147,16 +154,12 @@
    and maps + enums will get keywordized and
    kebab-cased."
   [msg]
-  (condp = (type msg)
+  (condp instance? msg
     Utf8
     (str msg)
 
-    ;; TODO: test
-
-    ;; Schema$Type/BYTES
-    ;; (if (bytes? obj)
-    ;;   obj
-    ;;   (throw-invalid-type schema obj))
+    java.nio.ByteBuffer
+    (.array msg)
 
     GenericData$Array
     (into [] (map java->clj msg))

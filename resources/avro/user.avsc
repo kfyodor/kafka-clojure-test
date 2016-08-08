@@ -38,6 +38,15 @@
 	]
       }
     },
+    { "name": "bytes", "type": "bytes", "default": "\u00FF" },
+    {
+      "name": "guid",
+      "default": null,
+      "type": [
+        "null",
+        {"type": "fixed", "name": "uuid", "size": 36}
+      ]
+    },
     {
       "name": "role",
       "default": "USER",
